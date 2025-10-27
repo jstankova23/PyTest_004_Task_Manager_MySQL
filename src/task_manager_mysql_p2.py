@@ -3,7 +3,7 @@
  Task Manager – správa úkolů (Python + MySQL)
 ------------------------------------------
 Autor:        Jana Staňková
-Verze:        1.1
+Verze:        1.1.1
 Datum:        2025-10-23
 Licence:      MIT License
 Python:       3.10+
@@ -23,22 +23,23 @@ Funkce pro čtení či zobrazení dat vlastní databázovou variantu nemá.
 
 Aplikace je určena také k automatizovaným testům pomocí PyTestu 
 a umožňuje práci na produkčním i testovacím prostředí.
+Souhrnný přehled návratových hodnot dle typu funkcí je uveden na konci programu.
 ==========================================
 """
 
 import os
 import mysql.connector
-from dotenv import load_dotenv   # nutná instalace knihovny python-dotenv
+from dotenv import load_dotenv   # import vyžaduje instalaci knihovny python-dotenv (pro nastavení prostředí)
 
 # 1) Environment variables
-# funkce load_dotenv() z knihovny python-dotenv načítá proměnné prostředí ze souboru .env.
+# funkce load_dotenv() z knihovny python-dotenv načítá proměnné prostředí ze souboru .env;
 # slouží k bezpečnému uložení přihlašovacích údajů (k MySQL) a umožňuje sdílení kódu bez citlivých dat
-load_dotenv()       # Načte proměnné z .env souboru (název databáze, uživatele, heslo)
+load_dotenv()       # načte proměnné z .env souboru (název databáze, uživatele, heslo)
 
 
 # 2) Připojení k databázi
 # funkce pro připojení k lokálním databázím (prod nebo test);
-# funkce vrací objekt conn (připojení k prod nebo test db), který je pak parametrem všech dalších funkcí programu;
+# funkce vrací None (chyba připojení) nebo objekt conn (připojení k prod/test db), který je pak parametrem všech dalších funkcí programu;
 # parametr funkce rozhoduje o připojení k prod nebo test db, pokud se spustí funkce bez parametru, default připojení je na prod;
 # naopak parametr u fixture pro PyTest (fix_test_conn) je definována s default hodnotou pro připojení na test db (test_db=True);
 # volání funkce: pripojeni_db() / pripojeni_db(test_db=False) --- připojení na prod db (task_manager_prod);
@@ -71,10 +72,11 @@ def pripojeni_db(test_db=False):
 
 
 
-# 2) Vytvoření tabulky
+# 2) Vytvoření tabulky (pokud neexistuje)
 # funkce pro vytvoření tabulky v lokální databázi (test nebo prod);
+# funkce bez návratu, provádí pouze efekt;
 # s parametrem conn si vytvoří vlastní kurzor jen na dobu svého běhu;
-# objekt conn obsahuje připojení k prod nebo test db, dle parametru funkce pripojeni_db()
+# objekt conn obsahuje připojení k prod nebo test db, dle parametru funkce pripojeni_db();
 # datový typ ENUM pro sloupec 'stav' zajišťuje pouze 3 povolené hodnoty s default hodnotou 'nezahájeno' 
 def vytvoreni_tabulky(conn):   
     try:
@@ -84,7 +86,7 @@ def vytvoreni_tabulky(conn):
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 nazev VARCHAR(30),
                 popis VARCHAR(100),
-                stav ENUM('nezahájeno', 'probíhá', 'hotovo') NOT NULL DEFAULT 'nezahájeno',
+                stav ENUM('nezahájeno', 'probíhá', 'hotovo') NOT NULL DEFAULT 'nezahájeno', 
                 datum_vytvoreni DATE
             )
         ''')
@@ -100,22 +102,26 @@ def vytvoreni_tabulky(conn):
 
 # 3) Přidání úkolu 
 # funkce pro přidání úkolu do databázové tabulky 'ukoly' - volba 1 z hlavního menu;
-# a) pridat_ukoly(): pouze načítá data z uživatelského vstupu, které pak předává svojí databázové variantě do jejích parametrů
+# a) pridat_ukoly(): pouze načítá data z uživatelského vstupu, které pak předává svojí databázové variantě do jejích parametrů;
 # b) pridat_ukol_db(): provádí insert nového úkolu do databázové tabulky 'ukoly'
 
 # a) pridat_ukoly(): 
-def pridat_ukol(conn):
+# funkce vrací True (volá db funkci) nebo False dle úspěšnosti 
+# funkce vrací False při špatném vstupu nebo True (předá výsledek a zavolá db funkci)
+def pridat_ukol(conn):  # získání hodnot z uživatelského vstupu ještě před voláním db funkce
     nazev = input("Zadejte název úkolu: ").strip()
     popis = input("Zadejte popis úkolu: ").strip()
-    pridat_ukol_db(nazev, popis, conn) # volání db funkce, předání hodnot z uživatelského vstupu (nazev, popis) a objektu conn z pripojeni_db() do parametrů této db funkce
 
-# b) pridat_ukol_db():
-# funkce vrací True nebo False dle úspěšnosti provedení insertu
-def pridat_ukol_db(nazev, popis, conn):
+    # validace uživatelského vstupu ještě před voláním db funkce
     if not nazev or not popis:
         print("Nebyl zadán název nebo popis úkolu. Prosím, zadejte obě tyto hodnoty (název, popis úkolu).")
         return False
 
+    return pridat_ukol_db(nazev, popis, conn) # volání db funkce, předání validovaných hodnot z uživatelského vstupu (nazev, popis) a objektu conn do jejích parametrů
+
+# b) pridat_ukol_db():
+# funkce vrací True nebo False dle úspěšnosti provedení insertu
+def pridat_ukol_db(nazev, popis, conn):
     try:
         cursor = conn.cursor()
         cursor.execute("INSERT INTO ukoly (nazev, popis, stav, datum_vytvoreni) VALUES (%s, %s, 'nezahájeno', CURDATE())", (nazev, popis))
@@ -136,7 +142,7 @@ def pridat_ukol_db(nazev, popis, conn):
 # b) zobrazit_vsechny_ukoly(): pomocná funkce pro aktualizovat_ukol(), odstranit_ukol() – zobrazuje všechny úkoly bez ohledu na jejich stav, není přístupná z hlavního menu
 
 # a) zobrazit_ukoly():
-# funkce vrací objekt nedokoncene_ukoly (True) nebo prázdný seznam (False) potřebný pro PyTest asserts;
+# funkce vrací objekt nedokoncene_ukoly v podobě seznamu/slovníků s nedokončenými úkoly nebo prázdný seznam (prázdný seznam není chyba);
 # conn.cursor(dictionary=True):
 # i) row=ukol=dictionary, což umožní přistupovat v tisku k jednotlivým klíčům/sloupcům tabulky podle jejich názvu;
 # ii) každý řádek/ukol/slovník má názvy sloupců jako klíče; 
@@ -145,7 +151,7 @@ def zobrazit_ukoly(conn):
     try:
         cursor = conn.cursor(dictionary=True)   # každá řádka z tabulky bude načtena jako samostatný slovník, nikoliv n-tice
         cursor.execute("SELECT * FROM ukoly WHERE stav IN ('nezahájeno', 'probíhá')")
-        nedokoncene_ukoly = cursor.fetchall()   # definice proměnné vysledky - objekt potřebný pro automatizovaný test (PyTest)
+        nedokoncene_ukoly = cursor.fetchall()   # proměnná nedokoncene_ukoly - objekt potřebný pro automatizovaný test (PyTest)
         cursor.close()
 
         if not nedokoncene_ukoly:
@@ -160,11 +166,11 @@ def zobrazit_ukoly(conn):
     
     except mysql.connector.Error as err:
         print(f"Chyba při načítání úkolů: {err}")
-        return []           # funkce vrací prázdný seznam
+        return False           # konec funkce, návrat do hlavního menu
 
 # b) zobrazit_vsechny_ukoly():
 # pomocná funkce – zobrazení všech úkolů (bez filtru) pro aktualizovat_ukol(), odstranit_ukol()
-# funkce vrací objekt ukoly (všechny) nebo prázdný seznam (False);
+# funkce vrací objekt ukoly v podobě seznamu/slovníků všech úkolů nebo prázdný seznam (prázdný seznam není chyba);
 def zobrazit_vsechny_ukoly(conn):
     try:
         cursor = conn.cursor(dictionary=True)
@@ -183,27 +189,30 @@ def zobrazit_vsechny_ukoly(conn):
 
     except mysql.connector.Error as err:
         print(f"Chyba při načítání úkolů: {err}")
-        return []
+        return False    # konec funkce, návrat do hlavního menu
 
 
 
 # 5) Změna stavu úkolu
-# funkce pro změnu stavu úkolu dle zadaného ID úkolu, vrací True/False dle úspěchu, volba 3 z hlavního menu;
+# funkce pro změnu stavu úkolu dle zadaného ID úkolu, volba 3 z hlavního menu;
 # a) aktualizovat_ukol(): ověřuje prázdný seznam úkolů, načítá pouze data z uživatelského vstupu, částečně je validuje (int) a předává svojí databázové variantě do jejích parametrů;
 # b) aktualizovat_ukol_db(): db varianta funkce, která provádí změnu stavu úkolu v databázové tabulce 'ukoly'
 
 # a) aktualizovat_ukol():
+# funkce pouze pro zjištění a validaci uživatelského vstupu a zjištění, zda seznam úkolů obsahuje data;
+# vrací True/False dle úspěchu nebo prázdný seznam v případě prázdné tabulky 'ukoly' 
 def aktualizovat_ukol(conn):
     # kontrola, zda v tabulce 'ukoly' vůbec existují nějaké úkoly (bez filtru, všechny úkoly)
     vsechny_ukoly = zobrazit_vsechny_ukoly(conn)
     if not vsechny_ukoly:
         print("Tabulka 'ukoly' je prázdná. Nejsou k dispozici žádné úkoly k aktualizaci.")    
-        return False                                                                                                                                        
+        return []       # funkce vrací prázdný seznam      
+    if vsechny_ukoly is False: # technická chyba při SELECTu
+        return False                                                                                                                         
 
-    # získání hodnoty z uživatelského vstupu
+    # uživatelský vstup: ID úkolu
     vstup_id_ukolu = input("Zadejte ID úkolu, u kterého chcete měnit jeho stav: ").strip()   # string, bez převodu na int, odstranění mezer před a po stringu
-
-    # kontrola hodnoty z uživatelského vstupu ještě před voláním db funkce, ukončení funkce s příslušnou hláškou a návrat do hl. menu u špatné vstupní hodnoty;
+    # kontrola hodnoty z uživatelského vstupu ještě před voláním db funkce;
     # kontrola správnosti datového typu (0–9) a konečný převod na integer;
     # kontrola rozsahu ID neprobíhá, musí provést až db funce s přístupem do MySQL databáze, jedná se o výpis jen některých (nedokončených) úkolů s různými ID
     if not vstup_id_ukolu.isdecimal():                                           
@@ -212,6 +221,7 @@ def aktualizovat_ukol(conn):
     else:
         id_ukolu = int(vstup_id_ukolu)
 
+    # uživatelský vstup: výběr stavu úkolu
     print("Zvolte nový stav daného úkolu:")
     print("1. probíhá\n2. hotovo")
     vstup_varianta = input("Zadejte číslo varianty (1-2): ").strip()
@@ -224,11 +234,11 @@ def aktualizovat_ukol(conn):
         print("Zadáno neplatné číslo varianty.")
         return False                                                                                                                                           
             
-    # volání db funkce, předání hodnot z uživatelského vstupu (id_ukolu, novy_stav) a objektu conn z pripojeni_db() do parametrů této db funkce   
-    aktualizovat_ukol_db(id_ukolu, novy_stav_ukolu, conn)     
-    
+    # volání db funkce, předání hodnot z uživatelského vstupu (id_ukolu, novy_stav) a objektu conn z pripojeni_db() do jejích parametrů   
+    return aktualizovat_ukol_db(id_ukolu, novy_stav_ukolu, conn)     
 
 # b) aktualizovat_ukol_db():
+# funkce vrací True nebo False dle úspěšnosti provedení aktualizace stavu
 def aktualizovat_ukol_db(id_ukolu, novy_stav, conn):
     try:
         cursor = conn.cursor()
@@ -251,33 +261,37 @@ def aktualizovat_ukol_db(id_ukolu, novy_stav, conn):
 
 # 6) Odstranění úkolu
 # funkce pro odstranění úkolu dle zadaného ID úkolu, volba 4 z hlavního menu;
-# a) odstranit_ukol(): ověřuje prázdný seznam úkolů, načítá pouze data z uživatelského vstupu, částečně je validuje (int) a předává svojí databázové variantě do jejích parametrů;
+# a) odstranit_ukol(): ověřuje prázdný seznam úkolů, načítá pouze data z uživatelského vstupu, částečně je validuje (int) a předává svojí db variantě do jejích parametrů;
 # b) odstranit_ukol_db(): db varianta funkce, která provádí výmaz zadaného úkolu z databázové tabulky 'ukoly'
 
 # a) odstranit_ukol():
+# vrací True/False dle úspěchu nebo prázdný seznam v případě prázdné tabulky 'ukoly' 
 def odstranit_ukol(conn):    
     # kontrola, zda v tabulce 'ukoly' vůbec existují nějaké úkoly (bez filtru, všechny úkoly)
     vsechny_ukoly = zobrazit_vsechny_ukoly(conn)
     if not vsechny_ukoly:
         print("Tabulka 'ukoly' je prázdná. Nejsou k dispozici žádné úkoly k odstranění.")    
-        return False                                                                                                                                        
+        return []       # funkce vrací prázdný seznam                                                                                                                                     
+    if vsechny_ukoly is False:         # technická chyba při SELECTu
+        return False
 
+    # uživatelský vstup: ID úkolu
     # získání hodnoty z uživatelského vstupu
     vstup_id_ukolu = input("Zadejte ID úkolu, u který chcete odstranit: ").strip()   # string, bez převodu na int, odstranění mezer před a po stringu
-
-    # kontrola hodnoty z uživatelského vstupu ještě před voláním db funkce, ukončení funkce s příslušnou hláškou a návrat do hl. menu u špatné vstupní hodnoty
-    # kontrola správnosti datového typu (0–9) a konečný převod na integer
+    # kontrola hodnoty z uživatelského vstupu ještě před voláním db funkce;
+    # kontrola správnosti datového typu (0–9) a konečný převod na integer;
     # kontrola rozsahu ID neprobíhá, musí provést až db funce s přístupem do MySQL databáze, jedná se o výpis jen některých (nedokončených) úkolů s různými ID
     if not vstup_id_ukolu.isdecimal():                                           
         print("Chybně zadaný datový typ. Zadejte pořadové ID úkolu ze seznamu (celé kladné číslo).")    
         return False                                                                                                                                         
     else:
         id_ukolu = int(vstup_id_ukolu)
-    
-    # volání db funkce, předání hodnoty z uživatelského vstupu (id_ukolu) a objektu conn z pripojeni_db() do parametrů této db funkce   
-    odstranit_ukol_db(id_ukolu, conn)       
+  
+    # volání db funkce, předání hodnoty z uživatelského vstupu (id_ukolu) a objektu conn z pripojeni_db() do jejích parametrů   
+    return odstranit_ukol_db(id_ukolu, conn)       
 
 # b) odstranit_ukol_db(): 
+# funkce vrací True nebo False dle úspěšnosti provedení výmazu
 def odstranit_ukol_db(id_ukolu, conn):
     try:
         cursor = conn.cursor()
@@ -299,7 +313,9 @@ def odstranit_ukol_db(id_ukolu, conn):
 
 # 7) Hlavní menu
 def hlavni_menu(conn):
-    while True:   # nekonečný cyklus, po dokončení běhu každé funkce se zobrazuje hlavní menu, dokud ho nepřeruší volba 5 s break
+# pouze textové namapování volby s příslušnou funkcí;
+# nekonečný cyklus, po dokončení běhu každé funkce se zobrazuje hlavní menu, dokud ho nepřeruší volba 5 s break
+    while True:   
         print("\nSprávce úkolů - Hlavní nabídka")
         print("1. Přidat úkol")
         print("2. Zobrazit úkoly")
@@ -311,16 +327,16 @@ def hlavni_menu(conn):
 
         # kontrola dat z uživatelského vstupu ještě před voláním funkce;
         # 1) kontrola správnosti datového typu (celé číslo/integer) - místo vyvolávání výjimky ValueError
-        if not vstup_volba.isdecimal():                                         # Pokud uživatel nezadal celé číslo (integer),
+        if not vstup_volba.isdecimal():                                     # Pokud uživatel nezadal celé číslo,
             print("Chybně zadaný datový typ. Zadejte číslo v rozsahu 1-5.") # vytiskni mu hlášku
-            continue  # a vráť ho do hl. menu (ukončení dané iterace a návrat na začátek nekonečného while true cyklu / hl. menu).
+            continue  # a vráť ho do hl. menu a pokračuj další iterací.
 
         volba = int(vstup_volba) # převod už prověřené uživatelské hodnoty (čísla) na datový typ integer
 
         # 2) kontrola správnosti rozsahu zadaného čísla (1-5) - místo vyvolávání výjimky IndexError
-        if volba < 1 or volba > 5:                                      # Pokud uživatel nezadal číslo v rozsahu 1-5,
+        if volba < 1 or volba > 5:                        # Pokud uživatel nezadal číslo v rozsahu 1-5,
             print("Volba akce se zadaným číslem neexistuje. Zadejte číslo v rozsahu 1-5.")
-            continue  # tak ho program vrátí do hl. menu.
+            continue                                      # tak ho vrať do hl. menu a pokračuj další iterací.
         
         # namapování uživatelské volby s příslušnými funkcemi, pouze volba 5 není spojena s funkcí, ale s příkazem break;
         # funkce se volá s už jen ověřenými platnými vstupy (integer v rozsahu 1-5)
@@ -334,11 +350,12 @@ def hlavni_menu(conn):
             odstranit_ukol(conn)
         elif volba == 5:
             print("Konec programu.")
-            break                                   # ukončení věčného cyklu while true / zobrazování hl. menu, konec programu
+            break                # ukončení věčného cyklu while true / zobrazování hl. menu, konec programu
 
 
 
-# 8. Spouštěcí bod programu
+# 8. Hlavní funkce pro spuštění programu
+# v úvodu spustí příslušné funkce pro připojení do dané databáze, vytvoří či potvrdí existenci tabulky 'ukoly' a spustí hl. menu
 def main():
     conn = pripojeni_db()
     if conn:
@@ -347,9 +364,44 @@ def main():
         conn.close()
 
 
-if __name__ == "__main__":   # ochrana, při importu do souborů pro PyTest se takto zabrání spuštění celého tohoto zdrojáku
+if __name__ == "__main__":   # ochrana, při importu do test souborů pro PyTest se nespustí celý zdroják
     main()
 
 
+"""
+==============================================================
+NÁVRATOVÉ HODNOTY FUNKCÍ 
+--------------------------------------------------------------
+
+Systémové funkce (DB připojení, tabulka)
+    • pripojeni_db()            → conn / None
+    • vytvoreni_tabulky()       → None
+
+Zobrazovací funkce (SELECT)
+    • zobrazit_ukoly()          → list[dict], [] (prázdná tabulka), False (SQL chyba)
+    • zobrazit_vsechny_ukoly()  → list[dict], [] (prázdná tabulka), False (SQL chyba)
+
+UI funkce (uživatelský vstup)
+    • pridat_ukol()             → True / False
+    • aktualizovat_ukol()       → True / [] (prázdná tabulka) / False
+    • odstranit_ukol()          → True / [] (prázdná tabulka) / False
+
+Databázové funkce (INSERT / UPDATE / DELETE)
+    • pridat_ukol_db()          → True / False
+    • aktualizovat_ukol_db()    → True / False
+    • odstranit_ukol_db()       → True / False
+
+Řídicí funkce
+    • hlavni_menu()             → None
+    • main()                    → None
+
+--------------------------------------------------------------
+Logika návratových hodnot
+    • True / list[dict] / conn  → operace úspěšná
+    • []                        → prázdná tabulka (není chyba)
+    • False                     → neplatný vstup nebo SQL/technická chyba
+    • None                      → pouze efekt, žádná návratová hodnota
+==============================================================
+"""
 
 
