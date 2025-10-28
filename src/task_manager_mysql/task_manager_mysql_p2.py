@@ -1,30 +1,31 @@
 """
-==========================================
- Task Manager – správa úkolů (Python + MySQL)
-------------------------------------------
+===========================================================================================
+ Task Manager – Python + MySQL
+-------------------------------------------------------------------------------------------
 Autor:        Jana Staňková
-Verze:        1.1.1
-Datum:        2025-10-23
+Verze:        1.2.1
+Vytvořeno:    23.10.2025
+Aktualizace:  28.10.2025
 Licence:      MIT License
 Python:       3.10+
 
 Popis:
 Aplikace pro správu úkolů (Task Manager). 
-Ukládá úkoly do databáze MySQL a umožňuje jejich přidávání, 
-zobrazení, aktualizaci a mazání.
+Ukládá úkoly do databáze MySQL a umožňuje jejich přidávání, zobrazení, aktualizaci a mazání.
 
-Připojení k databázi používá proměnné prostředí,
-které se načítají ze souboru .env (pomocí python-dotenv).
-Ukázkový .env.example je součástí repozitáře.
+Připojení k databázi používá proměnné prostředí, které se načítají ze souboru .env 
+(pomocí python-dotenv). Ukázkový .env.example je součástí repozitáře.
 
-Funkce z hlavního menu, které zapisují, mění nebo odstraňují data, 
-jsou rozděleny – každá má svou samostatnou databázovou variantu. 
-Funkce pro čtení či zobrazení dat vlastní databázovou variantu nemá.
+Architektura programu je rozdělena na:
+    • UI funkce – zpracovávají uživatelský vstup (input, print)
+    • DB funkce – provádějí operace nad databází (INSERT, UPDATE, DELETE)
 
-Aplikace je určena také k automatizovaným testům pomocí PyTestu 
-a umožňuje práci na produkčním i testovacím prostředí.
+V rámci PyTestů jsou testovány pouze databázové funkce, nikoliv UI funkce. 
+Testování UI funkcí by vyžadovalo mockování pomocí monkeypatch na input().
+
+Aplikace umožňuje práci na produkčním i testovacím prostředí.
 Souhrnný přehled návratových hodnot dle typu funkcí je uveden na konci programu.
-==========================================
+==============================================================================================
 """
 
 import os
@@ -78,14 +79,16 @@ def pripojeni_db(test_db=False):
 # s parametrem conn si vytvoří vlastní kurzor jen na dobu svého běhu;
 # objekt conn obsahuje připojení k prod nebo test db, dle parametru funkce pripojeni_db();
 # datový typ ENUM pro sloupec 'stav' zajišťuje pouze 3 povolené hodnoty s default hodnotou 'nezahájeno' 
+# CHECK constraint u sloupců 'nazev', 'popis' zajišťuje, že hodnota nesmí být null (prázdná) a ani to nesmí být prázdný řetězec
 def vytvoreni_tabulky(conn):   
     try:
         cursor = conn.cursor()     
+        
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS ukoly (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                nazev VARCHAR(30),
-                popis VARCHAR(100),
+                nazev VARCHAR(30) NOT NULL CHECK (nazev <> ''),
+                popis VARCHAR(100) NOT NULL CHECK (popis <> ''),
                 stav ENUM('nezahájeno', 'probíhá', 'hotovo') NOT NULL DEFAULT 'nezahájeno', 
                 datum_vytvoreni DATE
             )

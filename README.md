@@ -1,9 +1,9 @@
-# PyTest_004_Task_Manager_MySQL
-# Task Manager – správa úkolů (Python + MySQL)
+# Task Manager – Python + MySQL
 
 **Autor:** Jana Staňková  
-**Verze:** 1.1.0  
-**Datum:** 27. října 2025  
+**Verze projektu:** 1.2.1  
+**Datum vytvoření:** 27. 10. 2025  
+**Datum poslední aktualizace:** 28. 10. 2025  
 **Licence:** MIT  
 **Python:** 3.10+  
 
@@ -11,7 +11,7 @@
 
 ## Popis aplikace
 
-Tento projekt představuje **vylepšenou verzi aplikace Task Manager**, vytvořenou jako součást výuky modulu *MySQL přes Python* v rámci Engeto Academy.  
+Tento projekt představuje **vylepšenou verzi aplikace Task Manager**, vytvořenou jako součást výuky modulu *Python a MySQL* v rámci Engeto Academy.  
 Aplikace slouží ke **správě úkolů** pomocí databáze **MySQL**, kde se jednotlivé úkoly ukládají do tabulky `ukoly`.  
 Každý úkol odpovídá jednomu řádku v databázi a obsahuje sloupce:
 
@@ -32,9 +32,93 @@ Na rozdíl od dřívější verze aplikace, která pracovala jen s daty uložen�
 
 Aplikace je zároveň připravena pro **automatizované testování pomocí PyTestu**.  
 Testy mohou probíhat na produkční i testovací databázi – testovací databáze je doporučená a používá se pro simulaci dat bez ovlivnění ostrého prostředí.
+Testy pracují s testovací databází definovanou v .env souboru a využívají fixtures z conftest.py pro vytvoření tabulky 'ukoly' a izolaci jednotlivých testovacích případů.
+Vzhledem k architektuře programu, kde jsou funkce rozděleny na uživatelské (UI) a databázové (DB) varianty, jsou v rámci automatizovaných testů s využitím PyTest testovány pouze databázové funkce.
+
+UI funkce pracují s uživatelským vstupem input() a jejich testování by vyžadovalo 
+mockování pomocí monkeypatch na input().
+
+Testy tedy ověřují pouze správnost funkcí:
+    • pridat_ukol_db()
+    • aktualizovat_ukol_db()
+    • odstranit_ukol_db()
+
+Každá funkce má dva testy:
+    – pozitivní scénář (platné vstupy)
+    – negativní scénář (neplatné vstupy)
 
 ---
 
+## Struktura projektu
+
+```
+task_manager_mysql/
+│
+├─ src/    
+│   └─ task_manager_mysql/                  
+│       ├─ __init__.py               # inicializační soubor balíčku (importy)
+│       └─ task_manager_mysql_p2.py  # hlavní zdrojový soubor aplikace
+│
+├─ tests/
+│   ├─ __init__.py                   # prázdný soubor pro inicializaci testovacího balíčku
+│   ├─ conftest.py                   # fixtures pro vytvoření testovací tabulky a připojení k DB
+│   └─ test_task_manager_mysql_p2.py # testy jednotlivých DB funkcí (PyTest)
+│
+├─ .env                              # konfigurační soubor prostředí (lokální, neveřejný)
+├─ .env.example                      # ukázkový konfigurační soubor pro ostatní uživatele
+├─ .gitignore                        # definuje soubory ignorované Gitem
+├─ pyproject.toml                    # konfigurace projektu a závislostí
+├─ pytest.ini                        # konfigurace PyTestu
+├─ README.md                         # dokumentace projektu
+├─ requirements.txt                  # seznam závislostí (potřebných knihoven)
+├─ setup.cfg                         # doplňková konfigurace pro build/test nástroje
+└─ .github/
+    └─ workflows/
+        └─ ci.yml                    # GitHub Actions – automatické spouštění testů
+```
+
+---
+
+## Instalace projektu
+
+1. **Naklonujte projekt z GitHubu:**
+   ```bash
+   git clone https://github.com/<váš-uživatelský-účet>/task_manager_mysql.git
+   cd task_manager_mysql
+   ```
+
+2. **Vytvořte a aktivujte virtuální prostředí:**
+   ```bash
+   python -m venv venv
+   source venv/bin/activate        # Linux / macOS
+   venv\Scripts\activate         # Windows
+   ```
+
+3. **Nainstalujte potřebné knihovny:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Vytvořte konfigurační soubor `.env`:**
+   - použijte vzorový soubor `.env.example`
+   - doplňte své přihlašovací údaje pro MySQL (produkční a testovací databázi)
+
+   ```bash
+   DB_HOST=localhost
+   DB_NAME=task_manager_prod
+   DB_USER=root
+   DB_PASSWORD=heslo
+   DB_TEST_NAME=task_manager_test
+   DB_TEST_USER=root
+   DB_TEST_PASSWORD=heslo
+   ```
+
+5. **Spusťte aplikaci:**
+   ```bash
+   python src/task_manager_mysql/task_manager_mysql_p2.py
+   ```
+
+---
 ## Architektura programu a rozdělení funkcí
 
 Program je rozdělen do několika vrstev, které od sebe oddělují práci s uživatelským vstupem, databází a řízením aplikace.  
@@ -92,39 +176,52 @@ python task_manager.py
 
 ---
 
-## Testování pomocí PyTest
+## Spuštění testů pomocí PyTest
 
-Každá databázová funkce je připravena pro testování pomocí **PyTestu**.  
-Testy běží nad **testovací databází**, která má stejnou strukturu jako produkční tabulka.  
+Automatizované testy lze spustit jednoduše příkazem:
 
-Každá testovaná funkce má dva testy:
-- **Pozitivní test** – ověří správnou funkčnost (např. vložení nebo změna záznamu).  
-- **Negativní test** – ověří, jak se funkce chová při neplatném vstupu nebo chybě (např. neexistující ID).  
+```bash
+pytest -v
+```
 
-Po dokončení testů lze testovací data smazat, databáze tak zůstane po dokončení testovacího cyklu čistá.
+Testy ověřují funkčnost tří hlavních databázových funkcí:
+
+- `pridat_ukol_db()` – vložení nového úkolu  
+- `aktualizovat_ukol_db()` – změna stavu úkolu  
+- `odstranit_ukol_db()` – odstranění úkolu  
+
+Každá z těchto funkcí má:
+- jeden **pozitivní test** (ověření správné funkčnosti),
+- jeden **negativní test** (ověření reakce na neplatné vstupy).
+
+Po dokončení testů jsou testovaná data smazána, databáze tak zůstane po dokončení testovacího cyklu čistá.
 
 ---
 
 ## Požadavky a závislosti
 
-Aplikace vyžaduje nainstalované knihovny:
+Projekt využívá tyto knihovny:
 
 ```bash
-pip install mysql-connector-python python-dotenv pytest
+mysql-connector-python
+python-dotenv
+pytest
 ```
 
-A dále soubor `.env` s konfigurací připojení k databázi:
-
+Všechny závislosti lze nainstalovat jedním příkazem:
 ```bash
-DB_HOST=localhost
-DB_NAME=task_manager_prod
-DB_USER=root
-DB_PASSWORD=heslo
-DB_TEST_NAME=task_manager_test
-DB_TEST_USER=root
-DB_TEST_PASSWORD=heslo
+pip install -r requirements.txt
 ```
 
 ---
 
+## Shrnutí
+
+Aplikace **Task Manager – Python + MySQL** kombinuje:
+- přehlednou architekturu (oddělení UI a DB funkcí),
+- bezpečné načítání přihlašovacích údajů z `.env`,
+- plnou testovatelnost pomocí **PyTestu**,
+- a automatické ověřování správnosti kódu pomocí **GitHub Actions**.
+
+---
 
