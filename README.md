@@ -1,7 +1,7 @@
 # Task Manager – Python + MySQL
 
 **Autor:** Jana Staňková  
-**Verze projektu:** 1.2.1  
+**Verze projektu:** 1.2.2  
 **Datum vytvoření:** 27. 10. 2025  
 **Datum poslední aktualizace:** 28. 10. 2025  
 **Licence:** MIT  

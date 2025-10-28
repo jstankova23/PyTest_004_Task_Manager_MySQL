@@ -3,7 +3,7 @@
  Task Manager – Python + MySQL
 -------------------------------------------------------------------------------------------
 Autor:        Jana Staňková
-Verze:        1.2.1
+Verze:        1.2.2
 Vytvořeno:    23.10.2025
 Aktualizace:  28.10.2025
 Licence:      MIT License
@@ -273,7 +273,7 @@ def odstranit_ukol(conn):
     # kontrola, zda v tabulce 'ukoly' vůbec existují nějaké úkoly (bez filtru, všechny úkoly)
     vsechny_ukoly = zobrazit_vsechny_ukoly(conn)
     if not vsechny_ukoly:
-        print("Tabulka 'ukoly' je prázdná. Nejsou k dispozici žádné úkoly k odstranění.")    
+        print("Nejsou k dispozici žádné úkoly k odstranění.")    
         return []       # funkce vrací prázdný seznam                                                                                                                                     
     if vsechny_ukoly is False:         # technická chyba při SELECTu
         return False
@@ -306,6 +306,7 @@ def odstranit_ukol_db(id_ukolu, conn):
         else:
             conn.commit()
             cursor.close()
+            print(f"Úkol s ID {id_ukolu} byl odstraněn.")    
             return True
     
     except mysql.connector.Error as err:
