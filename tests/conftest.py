@@ -18,7 +18,6 @@ V rámci PyTestů jsou testovány pouze databázové funkce, nikoliv UI funkce.
 Testování UI funkcí by vyžadovalo mockování pomocí monkeypatch na input().
 
 Fixtures definované v tomto souboru:
--------------------------------------------------------------------------------------
 1) fix_create_db_table:
 vytvoří tabulku 'ukoly' v testovací databázi, spouští se jednou za celou testovací 
 relaci, scope="session"
@@ -29,46 +28,56 @@ spouští se pro každou testovací funkci, scope="function"
 
 Cílem těchto fixtures je zajistit izolované, opakovatelné a nezávislé testování 
 databázových funkcí bez vzájemného ovlivnění dat.
+
+
+Speciální chování v CI prostředí (GitHub Actions):
+Pokud testy běží v GitHub Actions (proměnná prostředí CI=true) a připojení k testovací databázi
+MySQL není dostupné, testy se automaticky přeskočí (pytest.skip), aby build nepadal kvůli 
+chybějící databázi.
 =====================================================================================
 """
+
 
 import os
 import pytest
 from task_manager_mysql.task_manager_mysql_p2 import pripojeni_db, vytvoreni_tabulky
 
-
-# 1) Fixture pro jednorázové vytvoření tabulky 'ukoly' v testovací databázi
-# spouští se pouze jednou za celou testovací relaci
+# Fixture pro vytvoření testovací tabulky 'ukoly' (vytvoří se jednou za testovací session)
 @pytest.fixture(scope="session")
 def fix_create_db_table():
+    # a) připojení k test databázi
     conn = pripojeni_db(test_db=True)
+
+    # --- GitHub Actions prostředí ---
+    # Pokud test běží v GitHub Actions (CI=true) a DB není dostupná,
+    # testy se přeskočí, aby build nepadal na chybějící databázi.
+    if os.getenv("CI") == "true" and conn is None:
+        pytest.skip("Test přeskočen: nelze se připojit k testovací databázi v prostředí GitHub Actions.")
+
+    # --- Lokální prostředí ---
+    # Pokud se k DB nelze připojit lokálně, považujeme to za chybu.
     assert conn is not None, "Nepodařilo se připojit k testovací databázi"
+
+    # b) vytvoření tabulky, pokud ještě neexistuje
     vytvoreni_tabulky(conn)
     conn.close()
 
 
-# 2) Fixture pro připojení a čištění tabulky 'ukoly' v testovací databázi
-# rozlišuje běžné spuštění (lokální) a běh v prostředí GitHub Actions
-# spouští se u každé test funkce, pro kterou vždy provede akce:
-# a) otevře nové připojení;
-# b) před testem i po testu vyčistí tabulku 'ukoly';
-# c) vrací objekt conn pro použití v testech
+# Fixture pro připojení k databázi a zajištění čistoty dat v tabulce 'ukoly'
 @pytest.fixture(scope="function")
 def fix_test_conn(fix_create_db_table):
     # a) připojení k test databázi
-    conn = pripojeni_db(test_db=True)       
-    
-    # --- lokální prostředí (běžný uživatel);
-    # pokud databáze není dostupná lokálně, jedná se o chybu (např. špatně nastavený či chybí .env);
-    assert conn is not None, "Nepodařilo se připojit k testovací databázi"
+    conn = pripojeni_db(test_db=True)
 
-    # --- GitHub Actions prostředí;
-    # GitHub automaticky nastavuje proměnnou prostředí CI=true;
-    # Pokud testy běží v GitHub Actions a databáze není dostupná (conn is None),
-    # testy se bezpečně přeskočí – nespustí se, ale ani nevyvolají chybu.
+    # --- GitHub Actions prostředí ---
+    # GitHub automaticky nastavuje proměnnou prostředí CI=true.
+    # Pokud běžíme v CI a databáze není dostupná, testy se přeskočí.
     if os.getenv("CI") == "true" and conn is None:
         pytest.skip("Test přeskočen: nelze se připojit k testovací databázi v prostředí GitHub Actions.")
 
+    # --- Lokální prostředí ---
+    # Pokud databáze není dostupná lokálně, považujeme to za chybu.
+    assert conn is not None, "Nepodařilo se připojit k testovací databázi"
 
     # b) před testem vymazat data
     cursor = conn.cursor()
@@ -76,9 +85,9 @@ def fix_test_conn(fix_create_db_table):
     conn.commit()
 
     # c) předání objektu conn do parametru test funkce; vystoupení z fixture, spustí se test funkce 
-    yield conn  
+    yield conn
 
-    # b) po testu znovu vymazat data
+    # d) po testu znovu vymazat data
     cursor.execute("DELETE FROM ukoly;")
     conn.commit()
     cursor.close()
