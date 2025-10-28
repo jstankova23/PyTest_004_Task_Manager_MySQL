@@ -33,7 +33,8 @@ conftest.py pro vytvoření tabulky 'ukoly' a izolaci jednotlivých testovacích
 
 import pytest
 from datetime import date
-from task_manager_mysql_p2 import (pridat_ukol_db, aktualizovat_ukol_db, odstranit_ukol_db)
+from task_manager_mysql.task_manager_mysql_p2 import pridat_ukol_db, aktualizovat_ukol_db, odstranit_ukol_db
+
 
 # 1) TESTY PRO DB FUNKCI pridat_ukol_db()
 # a) pozitivní test: test vložení úkolu s platným názvem a popisem do tabulky 'ukoly' v test db 
