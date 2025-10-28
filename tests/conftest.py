@@ -33,7 +33,8 @@ databázových funkcí bez vzájemného ovlivnění dat.
 """
 
 import pytest
-from task_manager_mysql_p2 import pripojeni_db, vytvoreni_tabulky
+from src.task_manager_mysql import pripojeni_db, vytvoreni_tabulky
+
 
 # 1) Fixture pro jednorázové vytvoření tabulky 'ukoly' v testovací databázi
 # spouští se pouze jednou za celou testovací relaci
