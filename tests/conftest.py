@@ -32,6 +32,7 @@ databázových funkcí bez vzájemného ovlivnění dat.
 =====================================================================================
 """
 
+import os
 import pytest
 from task_manager_mysql.task_manager_mysql_p2 import pripojeni_db, vytvoreni_tabulky
 
@@ -47,6 +48,7 @@ def fix_create_db_table():
 
 
 # 2) Fixture pro připojení a čištění tabulky 'ukoly' v testovací databázi
+# rozlišuje běžné spuštění (lokální) a běh v prostředí GitHub Actions
 # spouští se u každé test funkce, pro kterou vždy provede akce:
 # a) otevře nové připojení;
 # b) před testem i po testu vyčistí tabulku 'ukoly';
@@ -55,14 +57,26 @@ def fix_create_db_table():
 def fix_test_conn(fix_create_db_table):
     # a) připojení k test databázi
     conn = pripojeni_db(test_db=True)       
+    
+    # --- lokální prostředí (běžný uživatel);
+    # pokud databáze není dostupná lokálně, jedná se o chybu (např. špatně nastavený či chybí .env);
     assert conn is not None, "Nepodařilo se připojit k testovací databázi"
+
+    # --- GitHub Actions prostředí;
+    # GitHub automaticky nastavuje proměnnou prostředí CI=true;
+    # Pokud testy běží v GitHub Actions a databáze není dostupná (conn is None),
+    # testy se bezpečně přeskočí – nespustí se, ale ani nevyvolají chybu.
+    if os.getenv("CI") == "true" and conn is None:
+        pytest.skip("Test přeskočen: nelze se připojit k testovací databázi v prostředí GitHub Actions.")
+
 
     # b) před testem vymazat data
     cursor = conn.cursor()
     cursor.execute("DELETE FROM ukoly;")
     conn.commit()
 
-    yield conn  # c) předání objektu conn do parametru test funkce; vystoupení z fixture, spustí se test funkce 
+    # c) předání objektu conn do parametru test funkce; vystoupení z fixture, spustí se test funkce 
+    yield conn  
 
     # b) po testu znovu vymazat data
     cursor.execute("DELETE FROM ukoly;")
